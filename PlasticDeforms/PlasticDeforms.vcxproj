@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{B60C2436-DB88-4F2C-84C8-52BB16DFE31E}</ProjectGuid>
     <RootNamespace>PlasticDeforms</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.10240.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -90,10 +90,13 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>include;include\vegaFEM</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <SubSystem>Console</SubSystem>
+      <AdditionalLibraryDirectories>include\GL\lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -110,6 +113,25 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\initGraphics.cpp" />
+    <ClCompile Include="src\PlasticDeforms.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\VegaFEM\libraries\camera\camera.vcxproj">
+      <Project>{04671d75-da92-4a74-afb9-f37547f0e0c5}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\VegaFEM\libraries\lighting\lighting.vcxproj">
+      <Project>{411b7db0-7f1d-4d98-a93f-f13c86b8fbf4}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\VegaFEM\libraries\objMesh\objMesh.vcxproj">
+      <Project>{e28d40e0-4d25-417b-a867-659c3714f010}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\VegaFEM\libraries\sceneObject\sceneObject.vcxproj">
+      <Project>{0a962abe-3b94-4de3-9117-1e9be764bc2e}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\initGraphics.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

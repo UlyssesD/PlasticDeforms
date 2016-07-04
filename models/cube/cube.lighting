@@ -1,0 +1,35 @@
+*globalAmbientIntensity
+0.2
+
+*enableSpecularTerm
+true
+
+#### light 0
+
+*lightEnabled_0
+true
+
+*position_0_X
+-70
+*position_0_Y
+70
+*position_0_Z
+-70
+
+*lightIntensity_0
+0.2
+
+#### light 1
+
+*lightEnabled_1
+true
+
+*position_1_X
+90
+*position_1_Y
+90
+*position_1_Z
+90
+
+*lightIntensity_1
+0.5
