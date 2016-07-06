@@ -1,25 +1,40 @@
 #include <stdlib.h>
+#include <cmath>
 #include <iostream>
 #include <cstdio>
 using namespace std;
 
 //VegaFEM inclusions
 #include "openGL-headers.h"
+#include "openGLHelper.h"
+#include "GL/glui.h"
+#include "configFile.h"
 #include "lighting.h"
-#include "objMesh.h"
-#include "sceneObjectDeformable.h"
+#include "matrixIO.h"
+#include "modalMatrix.h"
+#include "sceneObjectReducedCPU.h"
+#include "reducedStVKForceModel.h"
+#include "implicitNewmarkDense.h"
 
 //Project inclusions
 #include "initGraphics.h"
 
 
 //Program variables
-string meshFilename = "";
-ObjMesh* mesh = NULL;
-Lighting* lighting = NULL;
-SceneObjectDeformable* sceneObj = NULL;
+string configFilesDir;
+string configFilename;
+ObjMesh * mesh = NULL;
+Lighting * lighting = NULL;
+SceneObjectReduced * deformableObjectRenderingMeshReduced = NULL;
+SceneObjectReducedCPU* deformableObjectRenderingMeshCPU = NULL;
+ModalMatrix* renderingModalMatrix = NULL;
+ImplicitNewmarkDense * implicitNewmarkDense = NULL;
+StVKReducedInternalForces * stVKReducedInternalForces = NULL;
+StVKReducedStiffnessMatrix * stVKReducedStiffnessMatrix = NULL;
+ReducedForceModel * reducedForceModel = NULL;
+ReducedStVKForceModel * reducedStVKForceModel;
+GLUI * glui;
 
-string lightingConfigFilename = "..\\models\\cube\\cube.lighting";
 char windowTitleBase[4096] = "Plastic Deformations - Toy Example";
 void displayFunction(void);
 int windowID;
@@ -28,14 +43,105 @@ int windowHeight = 600;
 double zNear = 0.01;
 double zFar = 10.0;
 double cameraRadius = 5;
-double focusPositionX, focusPositionY, focusPositionZ = 0.0;
-double cameraLongitude = 45.0, cameraLatitude = 45.0;
+double focusPositionX = 0, focusPositionY = 0, focusPositionZ = 0;
+double cameraLongitude, cameraLattitude;
 SphericalCamera * camera = NULL;
 
 
 int g_iMiddleMouseButton = 0, g_iRightMouseButton = 0;
 int g_vMousePos[2] = { 0,0 };
-bool renderWireframe = false, renderNormals = false;
+
+
+// options for the config file
+char deformableObjectFilename[4096];
+char extraSceneGeometryFilename[4096];
+char modesFilename[4096];
+char cubicPolynomialFilename[4096];
+char lightingConfigFilename[4096];
+float dampingMassCoef;
+float dampingStiffnessCoef;
+char backgroundColorString[4096] = "255 255 255";
+int renderOnGPU;
+int substepsPerTimeStep = 1;
+int plasticDeformationsEnabled = 1;
+float plasticThreshold = 10;
+
+int renderWireframe = 0, renderNormals = 0;
+
+int nRendering;
+int r;
+double * q = NULL;
+double * fq = NULL;
+double * fqBase = NULL;
+
+float timeStep = 1.0 / 30;
+float newmarkBeta = 0.25;
+float newmarkGamma = 0.5;
+
+double impulse = -19000000500;
+int vertex = 521;
+
+void applyImpulseForce()
+{
+	printf("Applying an impulse force on mesh of %f Newton along the Y axes on vertex %d. \n", impulse, vertex);
+	double externalForce[3] = { 0, impulse, 0 };
+
+	double cos = acos(dot(Vec3d(0, impulse, 0), Vec3d(0, 1, 0))/ len(Vec3d(0, impulse, 0)) * len(Vec3d(0, 1, 0)));
+	printf("Is force perpendicular: %d. \n", cos == PI);
+
+	renderingModalMatrix->ProjectSingleVertex(vertex,
+		externalForce[0], externalForce[1], externalForce[2], fq);
+
+
+	//for (int i = 0; i<r; i++)
+	//	fq[i] = fqBase[i] + deformableObjectCompliance * fq[i];
+	
+	// set the reduced external forces
+	implicitNewmarkDense->SetExternalForces(fq);
+
+	for (int i = 0; i < substepsPerTimeStep; i++)
+		int code = implicitNewmarkDense->DoTimestep();
+
+	memcpy(q, implicitNewmarkDense->Getq(), sizeof(double) * r);
+
+	// compute u=Uq
+	deformableObjectRenderingMeshReduced->Setq(q);
+	deformableObjectRenderingMeshReduced->Compute_uUq();
+
+	glutPostRedisplay();
+}
+
+void exit_buttonCallBack(int code)
+{
+	exit(0);
+}
+
+void impulse_spinnerCallBack(int code)
+{
+	glui->sync_live();
+}
+
+// calls all GLUI callbacks, except the listBox callbacks
+void callAllUICallBacks()
+{
+	impulse_spinnerCallBack(0);
+}
+
+void Sync_GLUI()
+{
+	glui->sync_live();
+}
+
+void initGLUI()
+{
+	glui = GLUI_Master.create_glui("Controls", 0, windowWidth + 10, 0);
+	glui->add_spinner("Impulse force:", GLUI_SPINNER_DOUBLE , &impulse, 0, impulse_spinnerCallBack);
+
+	glui->add_button("Exit program", 0, exit_buttonCallBack);
+
+	Sync_GLUI();
+	glui->set_main_gfx_window(windowID);
+}
 
 // graphics loop function.
 void displayFunction(void)
@@ -48,23 +154,25 @@ void displayFunction(void)
 
 	camera->Look();
 	
-	sceneObj->SetLighting(lighting);
+	deformableObjectRenderingMeshReduced->SetLighting(lighting);
 
 	lighting->LightScene();
 
 	//render the current mesh
 	glEnable(GL_LIGHTING);
-	sceneObj->Render();
+	deformableObjectRenderingMeshReduced->Render();
 
 	glDisable(GL_LIGHTING);
 
 	//if enabled, render wireframe
 	if(renderWireframe)
-		sceneObj->RenderEdges();
+		deformableObjectRenderingMeshReduced->RenderEdges();
 
 	//if enabled, render face normals
 	if (renderNormals)
-		sceneObj->RenderNormals();
+		deformableObjectRenderingMeshReduced->RenderNormals();
+
+	DrawArrow(0, 1, 0, 0, 1, 0, 0.05, 0.07);
 
 	glutSwapBuffers();
 }
@@ -99,6 +207,7 @@ void mouseMotionFunction(int x, int y)
 		const double factor = 0.2;
 		camera->MoveRight(factor * mouseDeltaX);
 		camera->MoveUp(factor * mouseDeltaY);
+
 	}
 
 	if (g_iMiddleMouseButton) // handle zoom in/out
@@ -139,6 +248,10 @@ void keyboardFunction(unsigned char key, int x, int y)
 			exit(0);
 			break;
 
+		case ' ':
+			applyImpulseForce();
+			break;
+
 		case 'w':
 			renderWireframe = !renderWireframe;
 			break;
@@ -147,10 +260,149 @@ void keyboardFunction(unsigned char key, int x, int y)
 			renderNormals = !renderNormals;
 			break;
 
+		case 'r':
+			deformableObjectRenderingMeshReduced->ResetDeformationToRest();
+			implicitNewmarkDense->ResetToRest();
+			break;
+
 		case '\\':
 			camera->Reset();
 			break;
 	}
+}
+
+void initConfigurations()
+{
+	ConfigFile configFile;
+
+	// specify the entries of the config file
+	configFile.addOptionOptional("windowWidth", &windowWidth, 800);
+	configFile.addOptionOptional("windowHeight", &windowHeight, 800);
+
+	configFile.addOption("deformableObjectFilename", deformableObjectFilename);
+	configFile.addOptionOptional("modesFilename", modesFilename, "__none");
+	configFile.addOptionOptional("cubicPolynomialFilename", cubicPolynomialFilename, "__none");
+
+	configFile.addOption("dampingMassCoef", &dampingMassCoef);
+	configFile.addOption("dampingStiffnessCoef", &dampingStiffnessCoef);
+
+	configFile.addOptionOptional("plasticThreshold", &plasticThreshold, plasticThreshold);
+
+	//configFile.addOption("deformableObjectCompliance", &deformableObjectCompliance);
+	//configFile.addOption("frequencyScaling", &frequencyScaling);
+
+	configFile.addOptionOptional("cameraRadius", &cameraRadius, 17.5);
+	configFile.addOptionOptional("focusPositionX", &focusPositionX, 0.0);
+	configFile.addOptionOptional("focusPositionY", &focusPositionY, 0.0);
+	configFile.addOptionOptional("focusPositionZ", &focusPositionZ, 0.0);
+	configFile.addOptionOptional("cameraLongitude", &cameraLongitude, 45.0);
+	configFile.addOptionOptional("cameraLattitude", &cameraLattitude, 45.0);
+
+	configFile.addOptionOptional("renderWireframe", &renderWireframe, 1);
+
+	configFile.addOptionOptional("extraSceneGeometry", extraSceneGeometryFilename, "__none");
+
+	configFile.addOptionOptional("backgroundColor", backgroundColorString, backgroundColorString);
+
+	string lightingConfigFilenameDefault = configFilesDir + "default.lighting";
+	configFile.addOptionOptional("lightingConfigFilename", lightingConfigFilename,
+		(char*)lightingConfigFilenameDefault.c_str());
+
+	configFile.addOptionOptional("substepsPerTimeStep",
+		&substepsPerTimeStep, substepsPerTimeStep);
+
+	configFile.addOptionOptional("renderOnGPU", &renderOnGPU, 0);
+
+	// parse the configuration file
+	if (configFile.parseOptions((char*)configFilename.c_str()) != 0)
+	{
+		printf("Error: unable to load the configuration file.\n");
+		exit(1);
+	}
+	// the config variables have now been loaded with their specified values
+
+	// informatively print the variables (with assigned values) that were just parsed
+	configFile.printOptions();
+}
+
+void initScene()
+{
+	// init lighting
+	try
+	{
+		lighting = new Lighting(lightingConfigFilename);
+	}
+	catch (int exceptionCode)
+	{
+		printf("Error (%d) reading lighting information from %s .\n", exceptionCode, lightingConfigFilename);
+		exit(1);
+	}
+
+	// init camera
+	delete(camera);
+	double virtualToPhysicalPositionFactor = 1.0;
+	initCamera(cameraRadius, cameraLongitude, cameraLattitude, focusPositionX, focusPositionY, focusPositionZ, 1.0 / virtualToPhysicalPositionFactor, &zNear, &zFar, &camera);
+
+	// load the rendering modes of the deformable object
+	int nRendering;
+	float * URenderingFloat;
+	ReadMatrixFromDisk_(modesFilename, &nRendering, &r, &URenderingFloat);
+	nRendering /= 3;
+	double * URendering = (double*)malloc(sizeof(double) * 3 * nRendering * r);
+	for (int i = 0; i < 3 * nRendering * r; i++)
+		URendering[i] = URenderingFloat[i];
+	free(URenderingFloat);
+	renderingModalMatrix = new ModalMatrix(nRendering, r, URendering);
+	free(URendering); // ModalMatrix made an internal copy
+
+					  // init room for reduced coordinates and reduced forces
+	q = (double*)calloc(r, sizeof(double));
+	fq = (double*)calloc(r, sizeof(double));
+	fqBase = (double*)calloc(r, sizeof(double));
+
+	// initialize the CPU rendering class for the deformable object
+	deformableObjectRenderingMeshCPU = new SceneObjectReducedCPU(deformableObjectFilename, renderingModalMatrix); // uses CPU to compute u=Uq
+
+	deformableObjectRenderingMeshReduced = deformableObjectRenderingMeshCPU;
+
+	deformableObjectRenderingMeshReduced->ResetDeformationToRest();
+
+	// make reduced mass matrix (=identity)
+	double * massMatrix = (double*)calloc(r*r, sizeof(double));
+	for (int i = 0; i<r; i++)
+		massMatrix[ELT(r, i, i)] = 1.0;
+
+	
+	stVKReducedInternalForces = new StVKReducedInternalForces(cubicPolynomialFilename); // normal version
+
+	// create stiffness matrix polynomials
+	stVKReducedStiffnessMatrix = new StVKReducedStiffnessMatrix(stVKReducedInternalForces);
+
+	// create the "internal force models" 
+	reducedStVKForceModel = new ReducedStVKForceModel(stVKReducedInternalForces, stVKReducedStiffnessMatrix);
+	//reducedLinearStVKForceModel = new ReducedLinearStVKForceModel(stVKReducedStiffnessMatrix);
+	reducedForceModel = reducedStVKForceModel;
+
+	// init the implicit Newmark
+	implicitNewmarkDense = new ImplicitNewmarkDense(r, timeStep, massMatrix, reducedForceModel, ImplicitNewmarkDense::positiveDefiniteMatrixSolver, dampingMassCoef, dampingStiffnessCoef);
+	implicitNewmarkDense->SetTimestep(timeStep / substepsPerTimeStep);
+	implicitNewmarkDense->SetNewmarkBeta(newmarkBeta);
+	implicitNewmarkDense->SetNewmarkGamma(newmarkGamma);
+	free(massMatrix);
+
+
+	// compute lowest frequency of the system (smallest eigenvalue of K)
+	double * K = (double*)malloc(sizeof(double) * r * r);
+	double * zero = (double*)calloc(r, sizeof(double));
+	stVKReducedStiffnessMatrix->Evaluate(zero, K);
+
+	// set background color
+	int colorR, colorG, colorB;
+	sscanf(backgroundColorString, "%d %d %d", &colorR, &colorG, &colorB);
+	glClearColor(1.0 * colorR / 255, 1.0 * colorG / 255, 1.0 * colorB / 255, 0.0);
+
+	Sync_GLUI();
+	callAllUICallBacks();
 }
 
 int main(int argc, char* argv[]) 
@@ -164,44 +416,21 @@ int main(int argc, char* argv[])
 	}
 
 	printf("Starting application. \n");
+	configFilesDir = string("configFiles\\");
+	configFilename = string(argv[1]);
+	printf("Loading file %s \n", configFilename.c_str());
 
-	meshFilename = string(argv[1]);
-	printf("Loading file %s \n", meshFilename.c_str());
-
-	//load mesh .obj file
-	mesh = new ObjMesh(meshFilename);
-
-	if (mesh == NULL)
-		printf("Error: failed to load input mesh. \n");
-	else
-		printf("Success: Number of vertices: %d, Number of faces: %d \n", mesh->getNumVertices(), mesh->getNumFaces());
+	initConfigurations();
 	
-	mesh->buildFaceNormals();
-
-	sceneObj = new SceneObjectDeformable(mesh);
 
 	initGLUT(argc, argv, windowTitleBase, windowWidth, windowHeight, &windowID);
 	initGraphics(windowWidth, windowHeight); // more OpenGL initialization calls
-	
-	// init lighting
-	try
-	{
-		lighting = new Lighting(lightingConfigFilename.c_str());
-	}
-	catch (int exceptionCode)
-	{
-		printf("Error (%d) reading lighting information from %s .\n", exceptionCode, lightingConfigFilename.c_str());
-		exit(1);
-	}
 
-	// init camera
-	delete(camera);
-	double virtualToPhysicalPositionFactor = 1.0;
-	initCamera(cameraRadius, cameraLongitude, cameraLatitude, focusPositionX, focusPositionY, focusPositionZ, 1.0 / virtualToPhysicalPositionFactor, &zNear, &zFar, &camera);
+	initGLUI();
+	initScene();
 
-	//try to visualize the mesh
-	//meshRender->render(OBJMESHRENDER_TRIANGLES, OBJMESHRENDER_MATERIAL);
-	glutMainLoop(); // you have reached the point of no return..
+	//Start UI Loop
+	glutMainLoop();
 
 	return 0;
 }

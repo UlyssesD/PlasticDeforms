@@ -36,6 +36,7 @@
     <PlatformToolset>v140</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
+    <UseIntelMKL>Parallel</UseIntelMKL>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -91,6 +92,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>include;include\vegaFEM</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -120,14 +122,35 @@
     <ProjectReference Include="..\..\VegaFEM\libraries\camera\camera.vcxproj">
       <Project>{04671d75-da92-4a74-afb9-f37547f0e0c5}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\..\VegaFEM\libraries\configFile\configFile.vcxproj">
+      <Project>{b3ae41d2-1c84-477c-b8b3-bb0c3cb6c362}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\VegaFEM\libraries\glui\glui.vcxproj">
+      <Project>{e593ccb0-f841-493b-b2ea-0d1eff92055b}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\VegaFEM\libraries\integratorDense\integratorDense.vcxproj">
+      <Project>{e478a444-7175-4356-b6f8-8d55066310cd}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\VegaFEM\libraries\lighting\lighting.vcxproj">
       <Project>{411b7db0-7f1d-4d98-a93f-f13c86b8fbf4}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\VegaFEM\libraries\objMesh\objMesh.vcxproj">
-      <Project>{e28d40e0-4d25-417b-a867-659c3714f010}</Project>
+    <ProjectReference Include="..\..\VegaFEM\libraries\modalMatrix\modalMatrix.vcxproj">
+      <Project>{c0934e7b-4bbd-4749-a3b9-002dafa1c53a}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\VegaFEM\libraries\sceneObject\sceneObject.vcxproj">
-      <Project>{0a962abe-3b94-4de3-9117-1e9be764bc2e}</Project>
+    <ProjectReference Include="..\..\VegaFEM\libraries\openGLHelper\openGLHelper.vcxproj">
+      <Project>{8a7dd50a-c9b8-4c4a-bd4c-91f33f6a64b3}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\VegaFEM\libraries\reducedElasticForceModel\reducedElasticForceModel.vcxproj">
+      <Project>{74aac111-f5b0-48f2-973d-4c191271e532}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\VegaFEM\libraries\reducedForceModel\reducedForceModel.vcxproj">
+      <Project>{1b6e3940-56e1-455a-a50e-bfc07c3064c4}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\VegaFEM\libraries\reducedStvk\reducedStvk.vcxproj">
+      <Project>{1ab786e8-d9b1-4847-9561-01a30174e864}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\VegaFEM\libraries\sceneObjectReduced\sceneObjectReduced.vcxproj">
+      <Project>{ebf8a849-5a61-4f3d-913a-d6838b5ba508}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

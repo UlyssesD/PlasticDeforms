@@ -26,15 +26,13 @@ void initGLUT(int argc, char* argv[], char * windowTitle, int windowWidth, int w
 	*windowID = glutCreateWindow(windowTitle);
 
 	// Setup GLUT callbacks.
-	glutDisplayFunc(displayFunction);
-	glutMouseFunc(mouseButtonActivityFunction);
-	glutKeyboardFunc(keyboardFunction);
-	//GLUI_Master.set_glutKeyboardFunc(keyboardFunction);
-	//GLUI_Master.set_glutSpecialFunc(specialFunction);
-	//GLUI_Master.set_glutReshapeFunc(reshape);
+	GLUI_Master.set_glutDisplayFunc(displayFunction);
+	GLUI_Master.set_glutIdleFunc(idleFunction);
+	GLUI_Master.set_glutMouseFunc(mouseButtonActivityFunction);
+	GLUI_Master.set_glutKeyboardFunc(keyboardFunction);
+	GLUI_Master.set_glutReshapeFunc(reshape);
 
 	glutMotionFunc(mouseMotionFunction);
-	glutIdleFunc(idleFunction);
 }
 
 void initCamera(double cameraRadius, double cameraLongitude, double cameraLattitude, double focusPosX, double focusPosY, double focusPosZ, double camera2WorldScalingFactor, double * zNear, double * zFar, SphericalCamera ** camera)
