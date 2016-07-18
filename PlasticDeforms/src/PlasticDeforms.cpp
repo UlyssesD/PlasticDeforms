@@ -64,7 +64,8 @@ char backgroundColorString[4096] = "255 255 255";
 int renderOnGPU;
 int substepsPerTimeStep = 1;
 int plasticDeformationsEnabled = 1;
-float plasticThreshold = 10;
+float plasticThreshold = 1E9;
+float frequencyScaling = 1;
 
 int renderWireframe = 0, renderNormals = 0;
 
@@ -78,13 +79,17 @@ float timeStep = 1.0 / 30;
 float newmarkBeta = 0.25;
 float newmarkGamma = 0.5;
 
-double impulse = -19000000500;
-int vertex = 521;
+double impulse = -1*pow(10, 1);
+int vertex = 9290;
 
 void applyImpulseForce()
 {
 	printf("Applying an impulse force on mesh of %f Newton along the Y axes on vertex %d. \n", impulse, vertex);
+	
+	
 	double externalForce[3] = { 0, impulse, 0 };
+
+	printf("Externalforce: [%f, %f, %f]\n", externalForce[0], externalForce[1], externalForce[2]);
 
 	double cos = acos(dot(Vec3d(0, impulse, 0), Vec3d(0, 1, 0))/ len(Vec3d(0, impulse, 0)) * len(Vec3d(0, 1, 0)));
 	printf("Is force perpendicular: %d. \n", cos == PI);
@@ -92,21 +97,29 @@ void applyImpulseForce()
 	renderingModalMatrix->ProjectSingleVertex(vertex,
 		externalForce[0], externalForce[1], externalForce[2], fq);
 
-
-	//for (int i = 0; i<r; i++)
-	//	fq[i] = fqBase[i] + deformableObjectCompliance * fq[i];
-	
 	// set the reduced external forces
 	implicitNewmarkDense->SetExternalForces(fq);
 
 	for (int i = 0; i < substepsPerTimeStep; i++)
+	{
 		int code = implicitNewmarkDense->DoTimestep();
+		if (code != 0)
+		{
+			printf("The integrator went unstable. Reduce the timestep, or increase the number of substeps per timestep.\n");
+			implicitNewmarkDense->ResetToRest();
+		}
+	}
+
+	printf("System kinetic energy: %f \n", implicitNewmarkDense->GetKineticEnergy());
 
 	memcpy(q, implicitNewmarkDense->Getq(), sizeof(double) * r);
 
 	// compute u=Uq
 	deformableObjectRenderingMeshReduced->Setq(q);
 	deformableObjectRenderingMeshReduced->Compute_uUq();
+
+	deformableObjectRenderingMeshReduced->BuildNeighboringStructure();
+	deformableObjectRenderingMeshReduced->BuildNormals();
 
 	glutPostRedisplay();
 }
@@ -167,12 +180,12 @@ void displayFunction(void)
 	//if enabled, render wireframe
 	if(renderWireframe)
 		deformableObjectRenderingMeshReduced->RenderEdges();
-
+	
 	//if enabled, render face normals
 	if (renderNormals)
 		deformableObjectRenderingMeshReduced->RenderNormals();
 
-	DrawArrow(0, 1, 0, 0, 1, 0, 0.05, 0.07);
+	//DrawArrow(0, 1, 0, 0, 1, 0, 0.05, 0.07);
 
 	glutSwapBuffers();
 }
@@ -263,6 +276,14 @@ void keyboardFunction(unsigned char key, int x, int y)
 		case 'r':
 			deformableObjectRenderingMeshReduced->ResetDeformationToRest();
 			implicitNewmarkDense->ResetToRest();
+
+			//rebuild normals
+			deformableObjectRenderingMeshReduced->BuildNeighboringStructure();
+			deformableObjectRenderingMeshReduced->BuildNormals();
+			break;
+
+		case 's':
+			deformableObjectRenderingMeshReduced->GetMesh()->save("output\\cube_diamond.obj");
 			break;
 
 		case '\\':
@@ -289,7 +310,7 @@ void initConfigurations()
 	configFile.addOptionOptional("plasticThreshold", &plasticThreshold, plasticThreshold);
 
 	//configFile.addOption("deformableObjectCompliance", &deformableObjectCompliance);
-	//configFile.addOption("frequencyScaling", &frequencyScaling);
+	configFile.addOption("frequencyScaling", &frequencyScaling);
 
 	configFile.addOptionOptional("cameraRadius", &cameraRadius, 17.5);
 	configFile.addOptionOptional("focusPositionX", &focusPositionX, 0.0);
@@ -355,7 +376,7 @@ void initScene()
 	renderingModalMatrix = new ModalMatrix(nRendering, r, URendering);
 	free(URendering); // ModalMatrix made an internal copy
 
-					  // init room for reduced coordinates and reduced forces
+	// init room for reduced coordinates and reduced forces
 	q = (double*)calloc(r, sizeof(double));
 	fq = (double*)calloc(r, sizeof(double));
 	fqBase = (double*)calloc(r, sizeof(double));
@@ -388,6 +409,9 @@ void initScene()
 	implicitNewmarkDense->SetTimestep(timeStep / substepsPerTimeStep);
 	implicitNewmarkDense->SetNewmarkBeta(newmarkBeta);
 	implicitNewmarkDense->SetNewmarkGamma(newmarkGamma);
+	implicitNewmarkDense->SetInternalForceScalingFactor(frequencyScaling * frequencyScaling);
+	
+	//implicitNewmarkDense->UseStaticSolver(1);
 	free(massMatrix);
 
 

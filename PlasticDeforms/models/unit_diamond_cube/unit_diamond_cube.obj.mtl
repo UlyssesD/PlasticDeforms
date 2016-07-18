@@ -1,0 +1,14 @@
+newmtl Material
+illum 4
+Ka 0.3 0.3 0.3
+Kd 0.350006 0.64 0.111726
+Ks 0.45 0.45 0.45
+Ns 96.0784
+
+newmtl default
+illum 4
+Ka 0.2 0.2 0.2
+Kd 0.6 0.6 0.6
+Ks 0 0 0
+Ns 507.813
+
