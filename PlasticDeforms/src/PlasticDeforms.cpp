@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include <cstdio>
+#include <limits>
 using namespace std;
 
 //VegaFEM inclusions
@@ -22,7 +23,7 @@ using namespace std;
 
 //Program variables
 string configFilesDir;
-string configFilename;
+string configFilename, outputFilename;
 ObjMesh * mesh = NULL;
 Lighting * lighting = NULL;
 SceneObjectReduced * deformableObjectRenderingMeshReduced = NULL;
@@ -45,6 +46,8 @@ double zFar = 10.0;
 double cameraRadius = 5;
 double focusPositionX = 0, focusPositionY = 0, focusPositionZ = 0;
 double cameraLongitude, cameraLattitude;
+//double threshold = numeric_limits<double>::infinity();
+double threshold = 1E-9;
 SphericalCamera * camera = NULL;
 
 
@@ -79,15 +82,15 @@ float timeStep = 1.0 / 30;
 float newmarkBeta = 0.25;
 float newmarkGamma = 0.5;
 
-double impulse = -1*pow(10, 1);
-int vertex = 9290;
+double impulse = 1*pow(10, 1), max_impulse = 100.0, step = 10;
+
+int vertex = 5956;
 
 void applyImpulseForce()
 {
 	printf("Applying an impulse force on mesh of %f Newton along the Y axes on vertex %d. \n", impulse, vertex);
 	
-	
-	double externalForce[3] = { 0, impulse, 0 };
+	double externalForce[3] = { 0, -1*impulse, 0 };
 
 	printf("Externalforce: [%f, %f, %f]\n", externalForce[0], externalForce[1], externalForce[2]);
 
@@ -100,18 +103,26 @@ void applyImpulseForce()
 	// set the reduced external forces
 	implicitNewmarkDense->SetExternalForces(fq);
 
-	for (int i = 0; i < substepsPerTimeStep; i++)
-	{
-		int code = implicitNewmarkDense->DoTimestep();
-		if (code != 0)
-		{
-			printf("The integrator went unstable. Reduce the timestep, or increase the number of substeps per timestep.\n");
-			implicitNewmarkDense->ResetToRest();
-		}
-	}
+
 
 	printf("System kinetic energy: %f \n", implicitNewmarkDense->GetKineticEnergy());
 
+	do	{
+		
+		for (int i = 0; i < substepsPerTimeStep; i++)
+		{
+			int code = implicitNewmarkDense->DoTimestep();
+			if (code != 0)
+			{
+				printf("The integrator went unstable. Reduce the timestep, or increase the number of substeps per timestep.\n");
+				implicitNewmarkDense->ResetToRest();
+			}
+		}
+
+	} while (implicitNewmarkDense->GetKineticEnergy() > threshold);
+
+	printf("System kinetic energy: %f \n", implicitNewmarkDense->GetKineticEnergy());
+	
 	memcpy(q, implicitNewmarkDense->Getq(), sizeof(double) * r);
 
 	// compute u=Uq
@@ -283,7 +294,33 @@ void keyboardFunction(unsigned char key, int x, int y)
 			break;
 
 		case 's':
-			deformableObjectRenderingMeshReduced->GetMesh()->save("output\\cube_diamond.obj");
+			char name[100];
+			sprintf(name, "output\\%s_%fN.obj", outputFilename.c_str(), impulse);
+			deformableObjectRenderingMeshReduced->GetMesh()->save(name, 1);
+			break;
+		
+		case 'l':
+			//apply impulse force with predefined range
+			for (impulse = step; impulse <= max_impulse; impulse = impulse + step)
+			{
+				//Apply the impulse
+				applyImpulseForce();
+
+				//Save the result
+				char name[100];
+				sprintf(name, "output\\%s_%fN.obj", outputFilename.c_str(), impulse);
+				deformableObjectRenderingMeshReduced->GetMesh()->save(name, 1);
+
+				//Reset mesh to rest
+				deformableObjectRenderingMeshReduced->ResetDeformationToRest();
+				implicitNewmarkDense->ResetToRest();
+
+				//rebuild normals
+				deformableObjectRenderingMeshReduced->BuildNeighboringStructure();
+				deformableObjectRenderingMeshReduced->BuildNormals();
+			}
+
+			printf("Operation Completed. \n");
 			break;
 
 		case '\\':
@@ -435,13 +472,17 @@ int main(int argc, char* argv[])
 	if (argc < 2)
 	{
 		printf("Missing input mesh .obj \n");
-		printf("Usage: %s [.obj file]. \n", argv[0]);
+		printf("Usage: %s [.obj file] [output_obj name] [max_impulse_value] [step]. \n", argv[0]);
 		return 1;
 	}
 
 	printf("Starting application. \n");
 	configFilesDir = string("configFiles\\");
 	configFilename = string(argv[1]);
+	outputFilename = string(argv[2]);
+	sscanf(argv[3], "%lf", &max_impulse);
+	sscanf(argv[4], "%lf", &step);
+
 	printf("Loading file %s \n", configFilename.c_str());
 
 	initConfigurations();
