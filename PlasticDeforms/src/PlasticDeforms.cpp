@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cstdio>
 #include <limits>
+#include <direct.h>
 using namespace std;
 
 //VegaFEM inclusions
@@ -61,8 +62,8 @@ char extraSceneGeometryFilename[4096];
 char modesFilename[4096];
 char cubicPolynomialFilename[4096];
 char lightingConfigFilename[4096];
-float dampingMassCoef;
-float dampingStiffnessCoef;
+float dampingMassCoef = 1;
+float dampingStiffnessCoef = 1;
 char backgroundColorString[4096] = "255 255 255";
 int renderOnGPU;
 int substepsPerTimeStep = 1;
@@ -82,7 +83,7 @@ float timeStep = 1.0 / 30;
 float newmarkBeta = 0.25;
 float newmarkGamma = 0.5;
 
-double impulse = 1*pow(10, 1), max_impulse = 100.0, step = 10;
+double impulse = 1*pow(10, 6), max_impulse = 100.0, step = 10;
 
 int vertex = 5956;
 
@@ -295,11 +296,13 @@ void keyboardFunction(unsigned char key, int x, int y)
 
 		case 's':
 			char name[100];
-			sprintf(name, "output\\%s_%fN.obj", outputFilename.c_str(), impulse);
+			sprintf(name, "output\\%s_%dN.obj", outputFilename.c_str(), (int) impulse);
 			deformableObjectRenderingMeshReduced->GetMesh()->save(name, 1);
 			break;
 		
 		case 'l':
+			_mkdir(("output\\" + outputFilename).c_str());
+
 			//apply impulse force with predefined range
 			for (impulse = step; impulse <= max_impulse; impulse = impulse + step)
 			{
@@ -308,7 +311,7 @@ void keyboardFunction(unsigned char key, int x, int y)
 
 				//Save the result
 				char name[100];
-				sprintf(name, "output\\%s_%fN.obj", outputFilename.c_str(), impulse);
+				sprintf(name, "output\\%s\\%s_%dN.obj",outputFilename.c_str(), outputFilename.c_str(), (int) impulse);
 				deformableObjectRenderingMeshReduced->GetMesh()->save(name, 1);
 
 				//Reset mesh to rest
@@ -446,7 +449,7 @@ void initScene()
 	implicitNewmarkDense->SetTimestep(timeStep / substepsPerTimeStep);
 	implicitNewmarkDense->SetNewmarkBeta(newmarkBeta);
 	implicitNewmarkDense->SetNewmarkGamma(newmarkGamma);
-	implicitNewmarkDense->SetInternalForceScalingFactor(frequencyScaling * frequencyScaling);
+	//implicitNewmarkDense->SetInternalForceScalingFactor(frequencyScaling * frequencyScaling);
 	
 	//implicitNewmarkDense->UseStaticSolver(1);
 	free(massMatrix);
@@ -480,8 +483,9 @@ int main(int argc, char* argv[])
 	configFilesDir = string("configFiles\\");
 	configFilename = string(argv[1]);
 	outputFilename = string(argv[2]);
-	sscanf(argv[3], "%lf", &max_impulse);
-	sscanf(argv[4], "%lf", &step);
+	sscanf(argv[3], "%lf", &impulse);
+	sscanf(argv[4], "%lf", &max_impulse);
+	sscanf(argv[5], "%lf", &step);
 
 	printf("Loading file %s \n", configFilename.c_str());
 
