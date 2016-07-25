@@ -2,7 +2,7 @@
 0.2
 
 *enableSpecularTerm
-false
+true
 
 #### light 3
 

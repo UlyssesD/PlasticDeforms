@@ -22,6 +22,9 @@ using namespace std;
 #include "initGraphics.h"
 
 
+//funcion declaration
+void displayFunction(void);
+
 //Program variables
 string configFilesDir;
 string configFilename, outputFilename;
@@ -48,7 +51,7 @@ double cameraRadius = 5;
 double focusPositionX = 0, focusPositionY = 0, focusPositionZ = 0;
 double cameraLongitude, cameraLattitude;
 //double threshold = numeric_limits<double>::infinity();
-double threshold = 1E-9;
+double threshold = 1E-4;
 SphericalCamera * camera = NULL;
 
 
@@ -62,8 +65,8 @@ char extraSceneGeometryFilename[4096];
 char modesFilename[4096];
 char cubicPolynomialFilename[4096];
 char lightingConfigFilename[4096];
-float dampingMassCoef = 1;
-float dampingStiffnessCoef = 1;
+float dampingMassCoef = 0.0;
+float dampingStiffnessCoef = 0.0;
 char backgroundColorString[4096] = "255 255 255";
 int renderOnGPU;
 int substepsPerTimeStep = 1;
@@ -85,28 +88,41 @@ float newmarkGamma = 0.5;
 
 double impulse = 1*pow(10, 6), max_impulse = 100.0, step = 10;
 
+int numverts = 0;
+int* vertices;
 int vertex = 5956;
 
 void applyImpulseForce()
 {
-	printf("Applying an impulse force on mesh of %f Newton along the Y axes on vertex %d. \n", impulse, vertex);
+	printf("Applying an impulse force of %f Newton along the Y axes on selected vertices. \n", impulse);
 	
 	double externalForce[3] = { 0, -1*impulse, 0 };
 
-	printf("Externalforce: [%f, %f, %f]\n", externalForce[0], externalForce[1], externalForce[2]);
+	//printf("Externalforce: [%f, %f, %f]\n", externalForce[0], externalForce[1], externalForce[2]);
 
 	double cos = acos(dot(Vec3d(0, impulse, 0), Vec3d(0, 1, 0))/ len(Vec3d(0, impulse, 0)) * len(Vec3d(0, 1, 0)));
-	printf("Is force perpendicular: %d. \n", cos == PI);
+	//printf("Is force perpendicular: %d. \n", cos == PI);
 
-	renderingModalMatrix->ProjectSingleVertex(vertex,
-		externalForce[0], externalForce[1], externalForce[2], fq);
+	for (int i = 0; i < numverts; i++) {
+		//printf("Applying an impulse force of %f Newton along the Y axes on vertex %d. \n", impulse, vertices[i]);
+		//deformableObjectRenderingMeshReduced->GetSingleVertexPosition(i, &v[0], &v[1], &v[2]);
+		//if (v[1] >= 0.0005 && v[0] >= -0.05 && v[0] <= 0.05 && v[2] >= -0.05 && v[2] <= 0.05) {
+		//	printf("Adding v[%d]: %f, %f, %f; \n", i, v[0], v[1], v[2]);
+			renderingModalMatrix->ProjectSingleVertex(vertices[i], externalForce[0], externalForce[1], externalForce[2], fq);
 
+			for (int j = 0; j < r; j++)
+				fqBase[j] = fqBase[j] + fq[j];
+		//}
+	}
+	//renderingModalMatrix->ProjectSingleVertex(vertex,
+	//	externalForce[0], externalForce[1], externalForce[2], fq);
+	memcpy(fq, fqBase, sizeof(double) * r);
 	// set the reduced external forces
 	implicitNewmarkDense->SetExternalForces(fq);
 
 
 
-	printf("System kinetic energy: %f \n", implicitNewmarkDense->GetKineticEnergy());
+	//printf("System kinetic energy: %f \n", implicitNewmarkDense->GetKineticEnergy());
 
 	do	{
 		
@@ -118,22 +134,40 @@ void applyImpulseForce()
 				printf("The integrator went unstable. Reduce the timestep, or increase the number of substeps per timestep.\n");
 				implicitNewmarkDense->ResetToRest();
 			}
+			
+			//memcpy(q, implicitNewmarkDense->Getq(), sizeof(double) * r);
+
+			// compute u=Uq
+			deformableObjectRenderingMeshReduced->Setq(implicitNewmarkDense->Getq());
+			deformableObjectRenderingMeshReduced->Compute_uUq();
+
+			deformableObjectRenderingMeshReduced->BuildNormals();
+
+			displayFunction();
+
 		}
 
 	} while (implicitNewmarkDense->GetKineticEnergy() > threshold);
 
 	printf("System kinetic energy: %f \n", implicitNewmarkDense->GetKineticEnergy());
 	
-	memcpy(q, implicitNewmarkDense->Getq(), sizeof(double) * r);
-
+	//memcpy(q, implicitNewmarkDense->Getq(), sizeof(double) * r);
+	
 	// compute u=Uq
-	deformableObjectRenderingMeshReduced->Setq(q);
+	deformableObjectRenderingMeshReduced->Setq(implicitNewmarkDense->Getq());
 	deformableObjectRenderingMeshReduced->Compute_uUq();
 
-	deformableObjectRenderingMeshReduced->BuildNeighboringStructure();
+	//deformableObjectRenderingMeshReduced->BuildNeighboringStructure();
 	deformableObjectRenderingMeshReduced->BuildNormals();
 
 	glutPostRedisplay();
+	
+	for (int i = 0; i < r; i++)
+	{
+		fq[i] = 0;
+		fqBase[i] = 0;
+	}
+		
 }
 
 void exit_buttonCallBack(int code)
@@ -269,6 +303,23 @@ void keyboardFunction(unsigned char key, int x, int y)
 	switch (key)
 	{
 		case 27:
+
+		case 'v':
+			printf("Calculating impact area;\n");
+			numverts = 0;
+			vertices = (int *) malloc(deformableObjectRenderingMeshReduced->GetNumVertices() * sizeof(int));
+			double v[3];
+			for (int i = 0; i < deformableObjectRenderingMeshReduced->GetNumVertices(); i++) {
+				deformableObjectRenderingMeshReduced->GetSingleVertexPosition(i, &v[0], &v[1], &v[2]);
+				if (v[1] >= 0.0005 && v[0] >= -0.03 && v[0] <= 0.03 && v[2] >= -0.03 && v[2] <= 0.03) {
+					//printf("Adding v[%d]: %f, %f, %f; \n", i, v[0], v[1], v[2]);
+					vertices[numverts] = i;
+					numverts++;
+					//renderingModalMatrix->ProjectSingleVertex(i, externalForce[0], externalForce[1], externalForce[2], fq);
+				}
+			}
+			printf("final size of impact area: %d; \n", numverts);
+			break;
 		case 'q':
 			exit(0);
 			break;
@@ -450,7 +501,7 @@ void initScene()
 	implicitNewmarkDense->SetNewmarkBeta(newmarkBeta);
 	implicitNewmarkDense->SetNewmarkGamma(newmarkGamma);
 	//implicitNewmarkDense->SetInternalForceScalingFactor(frequencyScaling * frequencyScaling);
-	
+	deformableObjectRenderingMeshReduced->BuildNeighboringStructure();
 	//implicitNewmarkDense->UseStaticSolver(1);
 	free(massMatrix);
 
