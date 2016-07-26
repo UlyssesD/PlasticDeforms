@@ -341,7 +341,7 @@ void keyboardFunction(unsigned char key, int x, int y)
 			implicitNewmarkDense->ResetToRest();
 
 			//rebuild normals
-			deformableObjectRenderingMeshReduced->BuildNeighboringStructure();
+			//fbuilddeformableObjectRenderingMeshReduced->BuildNeighboringStructure();
 			deformableObjectRenderingMeshReduced->BuildNormals();
 			break;
 
@@ -370,7 +370,7 @@ void keyboardFunction(unsigned char key, int x, int y)
 				implicitNewmarkDense->ResetToRest();
 
 				//rebuild normals
-				deformableObjectRenderingMeshReduced->BuildNeighboringStructure();
+				//deformableObjectRenderingMeshReduced->BuildNeighboringStructure();
 				deformableObjectRenderingMeshReduced->BuildNormals();
 			}
 
