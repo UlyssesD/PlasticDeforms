@@ -32,7 +32,7 @@ string extraSceneGeometryFilename;
 
 ObjMesh * mesh = NULL;
 Lighting * lighting = NULL;
-SceneObject * extraSceneGeometry = NULL;
+SceneObjectDeformable * extraSceneGeometry = NULL;
 SceneObjectReduced * deformableObjectRenderingMeshReduced = NULL;
 SceneObjectReducedCPU* deformableObjectRenderingMeshCPU = NULL;
 ModalMatrix* renderingModalMatrix = NULL;
@@ -92,7 +92,10 @@ double impulse = 1*pow(10, 6), max_impulse = 100.0, step = 10;
 
 int numverts = 0;
 int* vertices;
+double* displacements;
 int vertex = 5956;
+
+Vec3d trajectory[4] = { Vec3d(-0.03, 0.03, 0), Vec3d(-0.03, 0.015, 0), Vec3d(0.03, 0.015, 0), Vec3d(0.03, 0.03, 0) };
 
 void applyImpulseForce()
 {
@@ -108,7 +111,7 @@ void applyImpulseForce()
 	for (int i = 0; i < numverts; i++) {
 		//printf("Applying an impulse force of %f Newton along the Y axes on vertex %d. \n", impulse, vertices[i]);
 			renderingModalMatrix->ProjectSingleVertex(vertices[i], externalForce[0], externalForce[1], externalForce[2], fq);
-
+			 
 			for (int j = 0; j < r; j++)
 				fqBase[j] = fqBase[j] + fq[j];
 	}
@@ -238,6 +241,11 @@ void displayFunction(void)
 	glutSwapBuffers();
 }
 
+void simulateTool() 
+{
+
+}
+
 void mouseButtonActivityFunction(int button, int state, int x, int y)
 {
 	switch (button)
@@ -302,6 +310,8 @@ void reshape(int x, int y)
 
 void keyboardFunction(unsigned char key, int x, int y)
 {
+	Vec3d u; Vec3d  dist;
+
 	switch (key)
 	{
 		case 27:
@@ -343,8 +353,8 @@ void keyboardFunction(unsigned char key, int x, int y)
 			implicitNewmarkDense->ResetToRest();
 
 			//rebuild normals
-			//fbuilddeformableObjectRenderingMeshReduced->BuildNeighboringStructure();
 			deformableObjectRenderingMeshReduced->BuildNormals();
+			if(extraSceneGeometry != NULL) extraSceneGeometry->ResetDeformationToRest();
 			break;
 
 		case 's':
@@ -353,6 +363,34 @@ void keyboardFunction(unsigned char key, int x, int y)
 			deformableObjectRenderingMeshReduced->GetMesh()->save(name, 1);
 			break;
 		
+		case 't':
+			printf("Starting tool movement simulation \n");
+			
+			printf("moving vertices. \n");
+
+			for (int p = 0; p < size(trajectory) - 1; p++) {
+				dist = (trajectory[p + 1] - trajectory[p]); /// len(trajectory[1] - trajectory[0]);
+
+				printf("d: [%f %f %f] \n", dist[0], dist[1], dist[2]);
+
+				displacements = (double *)malloc(3 * extraSceneGeometry->GetNumVertices() * sizeof(double));
+				for (int substeps = 0; substeps < 100; substeps++)
+				{
+					for (int i = 0; i < extraSceneGeometry->GetNumVertices(); i++)
+					{
+						displacements[i * 3 + 0] = dist[0] / 100;
+						displacements[i * 3 + 1] = dist[1] / 100;
+						displacements[i * 3 + 2] = dist[2] / 100;
+					}
+					extraSceneGeometry->AddVertexDeformations(displacements);
+					displayFunction();
+					simulateTool();
+				}
+
+				free(displacements);
+			}
+			break;
+
 		case 'l':
 			_mkdir(("output\\" + outputFilename).c_str());
 
@@ -509,7 +547,7 @@ void initScene()
 
 	if (strcmp(extraSceneGeometryFilename.c_str(),"__none") != 0)
 	{
-		extraSceneGeometry = new SceneObject(extraSceneGeometryFilename.c_str());
+		extraSceneGeometry = new SceneObjectDeformable(extraSceneGeometryFilename.c_str());
 		extraSceneGeometry->BuildNeighboringStructure();
 		extraSceneGeometry->BuildNormals(85.0);
 	}
