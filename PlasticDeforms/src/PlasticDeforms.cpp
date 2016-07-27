@@ -28,8 +28,11 @@ void displayFunction(void);
 //Program variables
 string configFilesDir;
 string configFilename, outputFilename;
+string extraSceneGeometryFilename;
+
 ObjMesh * mesh = NULL;
 Lighting * lighting = NULL;
+SceneObject * extraSceneGeometry = NULL;
 SceneObjectReduced * deformableObjectRenderingMeshReduced = NULL;
 SceneObjectReducedCPU* deformableObjectRenderingMeshCPU = NULL;
 ModalMatrix* renderingModalMatrix = NULL;
@@ -61,7 +64,6 @@ int g_vMousePos[2] = { 0,0 };
 
 // options for the config file
 char deformableObjectFilename[4096];
-char extraSceneGeometryFilename[4096];
 char modesFilename[4096];
 char cubicPolynomialFilename[4096];
 char lightingConfigFilename[4096];
@@ -105,17 +107,14 @@ void applyImpulseForce()
 
 	for (int i = 0; i < numverts; i++) {
 		//printf("Applying an impulse force of %f Newton along the Y axes on vertex %d. \n", impulse, vertices[i]);
-		//deformableObjectRenderingMeshReduced->GetSingleVertexPosition(i, &v[0], &v[1], &v[2]);
-		//if (v[1] >= 0.0005 && v[0] >= -0.05 && v[0] <= 0.05 && v[2] >= -0.05 && v[2] <= 0.05) {
-		//	printf("Adding v[%d]: %f, %f, %f; \n", i, v[0], v[1], v[2]);
 			renderingModalMatrix->ProjectSingleVertex(vertices[i], externalForce[0], externalForce[1], externalForce[2], fq);
 
 			for (int j = 0; j < r; j++)
 				fqBase[j] = fqBase[j] + fq[j];
-		//}
 	}
 	//renderingModalMatrix->ProjectSingleVertex(vertex,
 	//	externalForce[0], externalForce[1], externalForce[2], fq);
+	
 	memcpy(fq, fqBase, sizeof(double) * r);
 	// set the reduced external forces
 	implicitNewmarkDense->SetExternalForces(fq);
@@ -220,6 +219,9 @@ void displayFunction(void)
 	//render the current mesh
 	glEnable(GL_LIGHTING);
 	deformableObjectRenderingMeshReduced->Render();
+	// render any extra scene geometry
+	if (extraSceneGeometry != NULL)
+		extraSceneGeometry->Render();
 
 	glDisable(GL_LIGHTING);
 
@@ -412,7 +414,7 @@ void initConfigurations()
 
 	configFile.addOptionOptional("renderWireframe", &renderWireframe, 1);
 
-	configFile.addOptionOptional("extraSceneGeometry", extraSceneGeometryFilename, "__none");
+	//configFile.addOptionOptional("extraSceneGeometry", extraSceneGeometryFilename, "__none");
 
 	configFile.addOptionOptional("backgroundColor", backgroundColorString, backgroundColorString);
 
@@ -505,6 +507,14 @@ void initScene()
 	//implicitNewmarkDense->UseStaticSolver(1);
 	free(massMatrix);
 
+	if (strcmp(extraSceneGeometryFilename.c_str(),"__none") != 0)
+	{
+		extraSceneGeometry = new SceneObject(extraSceneGeometryFilename.c_str());
+		extraSceneGeometry->BuildNeighboringStructure();
+		extraSceneGeometry->BuildNormals(85.0);
+	}
+	else
+		extraSceneGeometry = NULL;
 
 	// compute lowest frequency of the system (smallest eigenvalue of K)
 	double * K = (double*)malloc(sizeof(double) * r * r);
@@ -537,6 +547,11 @@ int main(int argc, char* argv[])
 	sscanf(argv[3], "%lf", &impulse);
 	sscanf(argv[4], "%lf", &max_impulse);
 	sscanf(argv[5], "%lf", &step);
+
+	if (argc == 7) //If there is a tool mesh obj
+		extraSceneGeometryFilename = string(argv[6]);
+	else
+		extraSceneGeometryFilename = "__none";
 
 	printf("Loading file %s \n", configFilename.c_str());
 
