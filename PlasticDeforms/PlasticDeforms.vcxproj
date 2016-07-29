@@ -91,7 +91,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>include;include\vegaFEM</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;include\vegaFEM;include\collisionDetection;include\Eigen</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -119,6 +119,9 @@
     <ClCompile Include="src\PlasticDeforms.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\collisionDetection\collisionDetection\collisionDetection.vcxproj">
+      <Project>{be079a98-7222-4343-93e2-53a086b13bee}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\VegaFEM\libraries\camera\camera.vcxproj">
       <Project>{04671d75-da92-4a74-afb9-f37547f0e0c5}</Project>
     </ProjectReference>
