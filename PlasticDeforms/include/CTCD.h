@@ -9,8 +9,8 @@ struct TimeInterval
     TimeInterval(double tl, double tu) : l(tl), u(tu)
     {
         if(l > u) std::swap(l, u);
-        l = std::max(l, 0.0);
-        u = std::min(u, 1.0);
+        l = max(l, 0.0);
+        u = min(u, 1.0);
     }
 
     TimeInterval() : l(0), u(0) {}
