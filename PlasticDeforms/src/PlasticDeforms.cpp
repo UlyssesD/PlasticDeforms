@@ -110,11 +110,29 @@ map<int, pair<Eigen::Vector3d, double>> vtxs;
 //Vec3d trajectory[3] = { Vec3d(-0.05, 0.03, 0), Vec3d(-0.05, 0.015, 0), Vec3d(0.05, 0.015, 0) };
 //Vec3d trajectory[10] = { Vec3d(-0.08, 0.03, 0), Vec3d(-0.08, 0.015, 0), Vec3d(-0.06, 0.015, 0.02), Vec3d(-0.04, 0.015, 0.04),  Vec3d(-0.02, 0.015, 0.06), Vec3d(0.0, 0.015, 0.08), Vec3d(0.02, 0.015, 0.06), Vec3d(0.04, 0.015, 0.04), Vec3d(0.06, 0.015, 0.02), Vec3d(0.08, 0.015, 0.0) };
 //for point_tool_x
-Vec3d trajectory[10] = { Vec3d(-0.08, 0.03, 0), Vec3d(-0.08, 0.01, 0), Vec3d(-0.06, 0.01, 0.02), Vec3d(-0.04, 0.01, 0.04),  Vec3d(-0.02, 0.01, 0.06), Vec3d(0.0, 0.01, 0.08), Vec3d(0.02, 0.01, 0.06), Vec3d(0.04, 0.01, 0.04), Vec3d(0.06, 0.01, 0.02), Vec3d(0.08, 0.01, 0.0) };
-//Vec3d trajectory[3] = { Vec3d(-0.08, 0.03, 0), Vec3d(-0.08, 0.012, 0), Vec3d(0.08, 0.012, 0) };
+//Vec3d trajectory[18] = { Vec3d(-0.08, 0.03, 0), Vec3d(-0.08, 0.013, 0), Vec3d(-0.07, 0.013, 0.01), Vec3d(-0.06, 0.013, 0.02), Vec3d(-0.05, 0.013, 0.03), Vec3d(-0.04, 0.013, 0.04), Vec3d(-0.03, 0.013, 0.05),  Vec3d(-0.02, 0.013, 0.06), Vec3d(-0.01, 0.013, 0.07), Vec3d(0.0, 0.013, 0.08), Vec3d(0.01, 0.013, 0.07), Vec3d(0.02, 0.013, 0.06), Vec3d(0.03, 0.013, 0.05), Vec3d(0.04, 0.013, 0.04), Vec3d(0.05, 0.013, 0.03), Vec3d(0.06, 0.013, 0.02), Vec3d(0.07, 0.013, 0.01), Vec3d(0.08, 0.013, 0.0) };
+Vec3d trajectory[3] = { Vec3d(-0.08, 0.03, 0), Vec3d(-0.08, 0.013, 0), Vec3d(0.08, 0.013, 0) };
 
 //list of faces under analysis
 list<int> faces;
+
+void calculateTrajectory(unsigned int points, double radius) {
+
+	unsigned int idx = 1;
+
+	for (double theta = 0; theta <= PI; theta += PI / points) {
+		trajectory[idx][0] = radius * cos(theta);
+		trajectory[idx][2] = radius * sin(theta);
+		
+		//trajectory[idx] = Vec3d(radius * cos(theta), 0.015, radius * sin(theta));
+		idx++;
+	}
+
+	for (unsigned int i = 0; i < size(trajectory); i++)
+		trajectory[i].print();
+}
+
+
 void applyImpulseForce()
 {
 	cout << "Applying an impulse force of" << impulse << "Newton along the Y axes on selected vertices" << endl;
@@ -493,11 +511,11 @@ void testCollisions(Eigen::Vector3d dist, Vec3d d)
 			extraSceneGeometry->GetSingleVertexPositionFromBuffer(j, &vert[0], &vert[1], &vert[2]);
 			Eigen::Vector3d v(vert[0], vert[1], vert[2]);
 
-			double eta = 1e-4;
-			double t = 0;
+			double eta = 1e-3;
+			double colltime = 0;
 			
 			//bool collision = CTCD::vertexFaceCTCD(v, t0 - dist, t1 - dist, t2 - dist, v, t0, t1, t2, eta, t);
-			bool collision = CTCD::vertexFaceCTCD(v - dist, t0, t1, t2, v, t0, t1, t2, eta, t);
+			bool collision = CTCD::vertexFaceCTCD(v - dist, t0, t1, t2, v, t0, t1, t2, eta, colltime);
 
 			if (collision)
 			{
@@ -507,6 +525,9 @@ void testCollisions(Eigen::Vector3d dist, Vec3d d)
 				//Vec3d force = (Vec3d(vert[0], vert[1], vert[2]) - d) - centroid;
 				
 				Eigen::Vector3d force = (v - dist) - ((t0 + t1 + t2) / 3);
+
+				if (force[1] < 0) force = -force;
+
 				//Eigen::Vector3d force =  (v) - ((t0 + t1 + t2) / 3);
 
 				//force direction based on center of mass
@@ -520,11 +541,11 @@ void testCollisions(Eigen::Vector3d dist, Vec3d d)
 				{
 					map<int, pair<Eigen::Vector3d, double>>::iterator it = vtxs.find(triangle[t]);
 					if (it == vtxs.end())
-						vtxs.emplace(triangle[t], pair<Eigen::Vector3d, double>(force, l));
-					else if(l < it->second.second)
+						vtxs.emplace(triangle[t], pair<Eigen::Vector3d, double>(force, colltime));
+					else if(colltime < it->second.second)
 					{
 						it->second.first = force;
-						it->second.second = l;
+						it->second.second = colltime;
 					}
 					//vertices[numverts] = triangle[t];
 					//numverts++;
@@ -594,9 +615,40 @@ void keyboardFunction(unsigned char key, int x, int y)
 		case 'q':
 			exit(0);
 			break;
+
+		case 'p':
+			calculateTrajectory(17, -0.08);
+			break;
+
 		case 'b':
 			findTopSurfaceVertices();
 			break;
+		
+		case 'x':
+			for (unsigned int p = 0; p < (size(trajectory) - 1); p++) {
+				dist = (trajectory[p + 1] - trajectory[p]); /// len(trajectory[1] - trajectory[0]);
+
+				printf("d: [%f %f %f] \n", dist[0], dist[1], dist[2]);
+
+				displacements = (double *)malloc(3 * extraSceneGeometry->GetNumVertices() * sizeof(double));
+				for (int substeps = 0; substeps < subs; substeps++)
+				{
+					for (int i = 0; i < extraSceneGeometry->GetNumVertices(); i++)
+					{
+						displacements[i * 3 + 0] = dist[0] / subs;
+						displacements[i * 3 + 1] = dist[1] / subs;
+						displacements[i * 3 + 2] = dist[2] / subs;
+					}
+					extraSceneGeometry->AddVertexDeformations(displacements);
+					displayFunction();
+
+				} 
+
+				free(displacements);
+			}
+			printf("Execution Completed.\n");
+			break;
+
 		case 'f':
 			cout << "Simulate tool swipe along plate." << endl;
 			
@@ -680,10 +732,7 @@ void keyboardFunction(unsigned char key, int x, int y)
 		case ' ':
 			applyImpulseForce();
 			break;
-		case 'p':
-			deformableObjectRenderingMeshReduced->GetMesh()->triangulate();
-			extraSceneGeometry->GetMesh()->triangulate();
-			break;
+
 		case 'w':
 			renderWireframe = !renderWireframe;
 			break;
@@ -716,7 +765,7 @@ void keyboardFunction(unsigned char key, int x, int y)
 			//tool_faces = getFacesVector(extraSceneGeometry);
 
 			cout << "Moving vertices. \n";
-			for (int p = 0; p < (size(trajectory) - 1); p++) {
+			for (unsigned int p = 0; p < (size(trajectory) - 1); p++) {
 				dist = (trajectory[p + 1] - trajectory[p]); /// len(trajectory[1] - trajectory[0]);
 
 				printf("d: [%f %f %f] \n", dist[0], dist[1], dist[2]);
@@ -740,18 +789,16 @@ void keyboardFunction(unsigned char key, int x, int y)
 					simulateImpact();	
 				}
 
-				free(displacements);
-			}
-			/*
-			while (implicitNewmarkDense->GetKineticEnergy() > threshold) {
+				/*
+				while (implicitNewmarkDense->GetKineticEnergy() > threshold) {
 
-				for (int i = 0; i < substepsPerTimeStep; i++)
-				{
-					int code = implicitNewmarkDense->DoTimestep();
-					if (code != 0)
+					for (int i = 0; i < substepsPerTimeStep; i++)
 					{
-						//printf("The integrator went unstable. Reduce the timestep, or increase the number of substeps per timestep.\n");
-						implicitNewmarkDense->ResetToRest();
+						int code = implicitNewmarkDense->DoTimestep();
+						if (code != 0)
+					{
+					//printf("The integrator went unstable. Reduce the timestep, or increase the number of substeps per timestep.\n");
+					implicitNewmarkDense->ResetToRest();
 					}
 
 					//memcpy(q, implicitNewmarkDense->Getq(), sizeof(double) * r);
@@ -759,21 +806,24 @@ void keyboardFunction(unsigned char key, int x, int y)
 					// compute u=Uq
 					deformableObjectRenderingMeshReduced->Setq(implicitNewmarkDense->Getq());
 					deformableObjectRenderingMeshReduced->Compute_uUq();
-
+					
 					deformableObjectRenderingMeshReduced->BuildNormals();
 
 					displayFunction();
 
+					}
+
 				}
 
+				for (int i = 0; i < r; i++)
+				{
+					fq[i] = 0;
+					fqBase[i] = 0;
+				}
+				*/
+				free(displacements);
 			}
-
-			for (int i = 0; i < r; i++)
-			{
-				fq[i] = 0;
-				fqBase[i] = 0;
-			}
-			*/
+			
 			faces.clear();
 			printf("Execution Completed.\n");
 			break;
